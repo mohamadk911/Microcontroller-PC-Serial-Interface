@@ -1,42 +1,98 @@
-# Microcontroller-PC Serial Interface
+# PC–Microcontroller Serial Calculator
 
-This project demonstrates a two-part embedded communication system in which a PC application exchanges arithmetic commands with a microcontroller over a UART/RS232 serial link. The microcontroller parses each received expression, performs the requested two-operand operation, returns the result, and supports logging of the message exchange.
+Two-part embedded system that sends arithmetic commands from a Windows C++ application to an Arduino-compatible microcontroller over UART and returns the calculated result.
 
-## Project focus
+## At a glance
 
-- UART/RS232 communication between a PC application and a microcontroller.
-- Separate PC-side and microcontroller-side applications.
-- Command framing, input validation, and expression parsing.
-- Embedded two-operand arithmetic processing.
-- Result feedback from the microcontroller to the PC application.
-- Text logging of transmitted commands and returned results.
+| | |
+|---|---|
+| **Goal** | Demonstrate a complete PC-to-embedded-device communication workflow |
+| **Host application** | C++17 with the Windows serial API |
+| **Firmware** | Arduino C/C++ at 19,200 baud, 8-N-1 |
+| **Protocol** | Newline-terminated `operand,operator,operand` messages |
+| **Reliability features** | Input validation, serial timeouts, bounded reads, append-only communication log |
 
-## System flow
+## Architecture
 
-1. The user enters an expression in the PC application.
-2. The PC application transmits the command through the serial port.
-3. The microcontroller validates and parses the expression.
-4. The microcontroller performs the requested operation.
-5. The result is sent back to the PC application for display and logging.
+```mermaid
+sequenceDiagram
+    actor User
+    participant PC as Windows C++ application
+    participant UART as USB / UART serial link
+    participant MCU as Microcontroller firmware
+    participant Log as saved_communications.txt
 
-## Hardware and software
+    User->>PC: Enter two numbers and an operator
+    PC->>UART: 12.5,*,4\n
+    PC->>Log: Append transmitted command
+    UART->>MCU: Receive framed message
+    MCU->>MCU: Validate, parse, calculate
+    MCU->>UART: 50.00\n
+    UART->>PC: Return result
+    PC->>Log: Append response
+    PC->>User: Display result
+```
 
-- Arduino or ST Nucleo-compatible microcontroller board.
-- UART/RS232 serial connection.
-- Microcontroller firmware written in C.
-- PC application written in C/C++.
-- A compiler and serial-terminal or PC-side application environment appropriate to the selected board.
+## Engineering highlights
 
-## Repository contents
+- Defined a compact text protocol that is easy to inspect with a serial terminal.
+- Separated host-side transport from embedded arithmetic processing.
+- Added explicit handling for malformed messages, unsupported operators, and division by zero.
+- Configured serial timeouts so a disconnected device does not block the host indefinitely.
+- Protected the host receive buffer by reserving space for the C-string terminator.
+- Preserved the original course artifacts while exposing readable source files directly in GitHub.
 
-- Development-phase documentation and design decisions.
-- C++ PC-side project archive.
-- Arduino/microcontroller source archive.
-- Compilation and testing instructions.
-- Final project documentation and supporting reports.
+## Source code
+
+- [`pc/serial_calculator.cpp`](pc/serial_calculator.cpp) — Windows host application. Pass the COM port as an optional argument; the default is `COM3`.
+- [`firmware/serial_calculator/serial_calculator.ino`](firmware/serial_calculator/serial_calculator.ino) — Arduino-compatible firmware.
+
+The original submitted ZIP archives remain in the repository for traceability, but the files above are the maintained, review-friendly versions.
+
+## Message protocol
+
+Requests use one line in this format:
+
+```text
+<first operand>,<operator>,<second operand>\n
+```
+
+Example:
+
+```text
+12.5,*,4
+```
+
+Successful responses contain the numeric result. Invalid requests return a human-readable `Error: ...` message.
+
+## Build and run
+
+### Firmware
+
+1. Open `firmware/serial_calculator/serial_calculator.ino` in the Arduino IDE.
+2. Select the connected board and port.
+3. Upload the sketch.
+
+### Windows host
+
+Compile with a C++17-capable Windows compiler. With Microsoft Visual C++:
+
+```powershell
+cl /EHsc /std:c++17 pc\serial_calculator.cpp
+```
+
+Run with the default `COM3` port or provide another port:
+
+```powershell
+serial_calculator.exe COM5
+```
+
+Both sides must use **19,200 baud, 8 data bits, no parity, and one stop bit**.
 
 ## Documentation
 
-Start with `Compiling and testing Instructions.pdf` for the build and test procedure, then review the development-phase documents before opening the source archives.
+The repository also contains the original design, visualization, development, compilation, and testing PDFs from the IU course *Programming with C/C++ (DLBROEPRS01_E), Task 1.2*.
 
-The project was completed for the IU course Programming with C/C++ (DLBROEPRS01_E), Task 1.2. Original submitted artifacts are retained for traceability.
+## Scope
+
+This is an educational embedded-communication project. It uses a simple text protocol without checksums, authentication, or retransmission and is not intended as a production industrial protocol.
